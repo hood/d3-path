@@ -3,10 +3,33 @@ const pi = Math.PI,
     epsilon = 1e-6,
     tauEpsilon = tau - epsilon;
 
+const decoder = new TextDecoder("latin1");
+const digits = new Uint8Array(24);
+
+function writeString(path, s) {
+  const n = s.length;
+  path._grow(n);
+  const b = path._b;
+  let j = path._n;
+  for (let i = 0; i < n; ++i) b[j++] = s.charCodeAt(i);
+  path._n = j;
+}
+
+function writeInteger(path, a) {
+  let m = 0;
+  do { const q = Math.floor(a / 10); digits[m++] = 48 + a - q * 10; a = q; } while (a > 0);
+  path._grow(m);
+  const b = path._b;
+  let j = path._n;
+  while (m) b[j++] = digits[--m];
+  path._n = j;
+}
+
 function append(strings) {
-  this._ += strings[0];
+  writeString(this, strings[0]);
   for (let i = 1, n = strings.length; i < n; ++i) {
-    this._ += arguments[i] + strings[i];
+    writeString(this, "" + arguments[i]);
+    writeString(this, strings[i]);
   }
 }
 
@@ -16,9 +39,28 @@ function appendRound(digits) {
   if (d > 15) return append;
   const k = 10 ** d;
   return function(strings) {
-    this._ += strings[0];
+    writeString(this, strings[0]);
     for (let i = 1, n = strings.length; i < n; ++i) {
-      this._ += Math.round(arguments[i] * k) / k + strings[i];
+      const n1 = Math.round(arguments[i] * k);
+      if (!(n1 < 4503599627370496 && n1 > -4503599627370496)) writeString(this, "" + n1 / k);
+      else {
+        let a = n1;
+        if (a < 0) a = -a, writeString(this, "-");
+        const q = Math.floor(a / k);
+        writeInteger(this, q);
+        let r = a - q * k;
+        if (r) {
+          let e = d;
+          while (r % 10 === 0) r /= 10, --e;
+          this._grow(e + 1);
+          const b = this._b;
+          let j = this._n;
+          b[j++] = 46;
+          for (let t = e - 1; t >= 0; --t) { const q2 = Math.floor(r / 10); b[j + t] = 48 + r - q2 * 10; r = q2; }
+          this._n = j + e;
+        }
+      }
+      writeString(this, strings[i]);
     }
   };
 }
@@ -43,7 +85,8 @@ export class Path {
   constructor(digits) {
     this._x0 = this._y0 = // start of current subpath
     this._x1 = this._y1 = null; // end of current subpath
-    this._ = "";
+    this._b = new Uint8Array(256);
+    this._n = 0;
     this._append = digits == null ? append : appendRound(digits);
     this._equal = digits == null ? equal : equalRound(digits);
   }
@@ -164,8 +207,15 @@ export class Path {
   rect(x, y, w, h) {
     this._append`M${this._x0 = this._x1 = +x},${this._y0 = this._y1 = +y}h${w = +w}v${+h}h${-w}Z`;
   }
+  _grow(m) {
+    if (this._n + m > this._b.length) {
+      const b = new Uint8Array(Math.max(this._b.length * 2, this._n + m));
+      b.set(this._b);
+      this._b = b;
+    }
+  }
   toString() {
-    return this._;
+    return decoder.decode(this._b.subarray(0, this._n));
   }
 }
 
