@@ -14,12 +14,30 @@ function appendRound(digits) {
   let d = Math.floor(digits);
   if (!(d >= 0)) throw new Error(`invalid digits: ${digits}`);
   if (d > 15) return append;
-  const k = 10 ** d;
+  const format = formatRound(d);
   return function(strings) {
     this._ += strings[0];
     for (let i = 1, n = strings.length; i < n; ++i) {
-      this._ += Math.round(arguments[i] * k) / k + strings[i];
+      this._ += format(arguments[i]) + strings[i];
     }
+  };
+}
+
+const fractions = [];
+
+function formatRound(d) {
+  const k = 10 ** d;
+  if (d > 4) return x => Math.round(x * k) / k;
+  const f = fractions[d] || (fractions[d] = Array.from({length: k}, (_, i) => i ? ("." + String(i).padStart(d, "0")).replace(/0+$/, "") : ""));
+  return function(x) {
+    const n = Math.round(x * k);
+    if (!(n < 4503599627370496 && n > -4503599627370496)) return n / k;
+    if (n < 0) {
+      const a = -n, q = Math.floor(a / k);
+      return "-" + q + f[a - q * k];
+    }
+    const q = Math.floor(n / k);
+    return q + f[n - q * k];
   };
 }
 
