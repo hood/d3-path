@@ -4,9 +4,10 @@ const pi = Math.PI,
     tauEpsilon = tau - epsilon;
 
 function append(strings) {
-  this._ += strings[0];
+  const b = this._b;
+  b.push(strings[0]);
   for (let i = 1, n = strings.length; i < n; ++i) {
-    this._ += arguments[i] + strings[i];
+    b.push(arguments[i] + strings[i]);
   }
 }
 
@@ -16,9 +17,10 @@ function appendRound(digits) {
   if (d > 15) return append;
   const k = 10 ** d;
   return function(strings) {
-    this._ += strings[0];
+    const b = this._b;
+    b.push(strings[0]);
     for (let i = 1, n = strings.length; i < n; ++i) {
-      this._ += Math.round(arguments[i] * k) / k + strings[i];
+      b.push(Math.round(arguments[i] * k) / k + strings[i]);
     }
   };
 }
@@ -44,6 +46,7 @@ export class Path {
     this._x0 = this._y0 = // start of current subpath
     this._x1 = this._y1 = null; // end of current subpath
     this._ = "";
+    this._b = [];
     this._append = digits == null ? append : appendRound(digits);
     this._equal = digits == null ? equal : equalRound(digits);
   }
@@ -165,6 +168,7 @@ export class Path {
     this._append`M${this._x0 = this._x1 = +x},${this._y0 = this._y1 = +y}h${w = +w}v${+h}h${-w}Z`;
   }
   toString() {
+    if (this._b.length) this._ += this._b.join(""), this._b = [];
     return this._;
   }
 }
